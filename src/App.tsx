@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
@@ -47,6 +47,7 @@ function App() {
 
         {/* Admin Panel */}
         <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />
           <Route path="services" element={<Services />} />
@@ -57,6 +58,8 @@ function App() {
           <Route path="pricing" element={<Pricing />} />
           <Route path="media" element={<Media />} />
         </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
