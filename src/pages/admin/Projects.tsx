@@ -25,8 +25,12 @@ export function Projects() {
       query = query.eq('published', false);
     }
 
-    const { data } = await query;
-    if (data) setProjects(data);
+    const { data, error } = await query;
+    if (error) {
+      toast.error(`Could not load projects: ${error.message}`);
+      return;
+    }
+    setProjects(data ?? []);
   }, [filter]);
 
   useEffect(() => {
@@ -45,7 +49,7 @@ export function Projects() {
       toast.error(error.message);
     } else {
       toast.success('Project deleted!');
-      fetchProjects();
+      void fetchProjects();
     }
   }
 
@@ -59,7 +63,7 @@ export function Projects() {
       toast.error(error.message);
     } else {
       toast.success(currentStatus ? 'Project unpublished' : 'Project published!');
-      fetchProjects();
+      void fetchProjects();
     }
   }
 

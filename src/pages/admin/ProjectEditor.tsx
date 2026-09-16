@@ -13,6 +13,7 @@ export function ProjectEditor() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<Array<{ id?: string; image_url: string; caption: string | null }>>([]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -53,6 +54,13 @@ export function ProjectEditor() {
       .single();
 
     if (data) {
+      const { data: galleryData } = await supabase
+        .from('project_images')
+        .select('id, image_url, caption')
+        .eq('project_id', data.id)
+        .order('sort_order');
+
+      setGalleryImages(galleryData ?? []);
       setFormData({
         title: data.title,
         slug: data.slug,
@@ -88,33 +96,63 @@ export function ProjectEditor() {
       .replace(/^-|-$/g, '');
   }
 
-  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+  async function uploadProjectImage(file: File) {
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `projects/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('project-images')
+      .upload(filePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('project-images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  }
+
+  async function handleCoverImageUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `projects/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('project-images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('project-images')
-        .getPublicUrl(filePath);
-
-      setFormData({ ...formData, cover_image: publicUrl });
-      toast.success('Image uploaded!');
-    } catch (error: any) {
-      toast.error(error.message);
+      const publicUrl = await uploadProjectImage(file);
+      setFormData((current) => ({ ...current, cover_image: publicUrl }));
+      toast.success('Cover image uploaded!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Image upload failed');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
+  }
+
+  async function handleGalleryUpload(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploadedImages = await Promise.all(files.map(async (file) => ({
+        image_url: await uploadProjectImage(file),
+        caption: null,
+      })));
+      setGalleryImages((current) => [...current, ...uploadedImages]);
+      toast.success(`${uploadedImages.length} gallery image${uploadedImages.length === 1 ? '' : 's'} uploaded! Save the project to publish them.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gallery upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  function removeGalleryImage(index: number) {
+    setGalleryImages((current) => current.filter((_, imageIndex) => imageIndex !== index));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -124,31 +162,57 @@ export function ProjectEditor() {
     try {
       const projectData = {
         ...formData,
-        slug: formData.slug || generateSlug(formData.title),
+        title: formData.title.trim(),
+        slug: (formData.slug || generateSlug(formData.title)).trim(),
         tools: formData.tools ? formData.tools.split(',').map(t => t.trim()) : [],
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
         category_id: formData.category_id || null,
+        published: formData.published,
       };
 
+      let projectId = id;
+
       if (id) {
-        // Update
         const { error } = await supabase
           .from('projects')
           .update(projectData)
-          .eq('id', id);
+          .eq('id', id)
+          .select('id')
+          .single();
 
         if (error) throw error;
-        toast.success('Project updated!');
       } else {
-        // Create
-        const { error } = await supabase
+        const { data: createdProject, error } = await supabase
           .from('projects')
-          .insert([projectData]);
+          .insert([projectData])
+          .select('id')
+          .single();
 
         if (error) throw error;
-        toast.success('Project created!');
+        projectId = createdProject.id;
       }
 
+      if (!projectId) throw new Error('Project ID was not returned after saving.');
+
+      const { error: deleteGalleryError } = await supabase
+        .from('project_images')
+        .delete()
+        .eq('project_id', projectId);
+      if (deleteGalleryError) throw deleteGalleryError;
+
+      if (galleryImages.length > 0) {
+        const { error: galleryError } = await supabase.from('project_images').insert(
+          galleryImages.map((image, index) => ({
+            project_id: projectId,
+            image_url: image.image_url,
+            caption: image.caption,
+            sort_order: index,
+          })),
+        );
+        if (galleryError) throw galleryError;
+      }
+
+      toast.success(id ? 'Project updated!' : 'Project created!');
       navigate('/admin/projects');
     } catch (error: any) {
       toast.error(error.message);
@@ -301,11 +365,42 @@ export function ProjectEditor() {
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleImageUpload}
+                onChange={handleCoverImageUpload}
                 className="hidden"
                 disabled={uploading}
               />
             </label>
+          )}
+        </div>
+
+        {/* Gallery Images */}
+        <div className="bg-muted/5 border border-border rounded-2xl p-6">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold">Project Gallery</h2>
+              <p className="mt-1 text-sm text-muted">Upload multiple images for the Behance-style project page.</p>
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-4 py-3 font-medium hover:border-accent">
+              <Upload className="h-5 w-5" />
+              {uploading ? 'Uploading...' : 'Add images'}
+              <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} className="hidden" disabled={uploading} />
+            </label>
+          </div>
+
+          {galleryImages.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {galleryImages.map((image, index) => (
+                <div key={`${image.image_url}-${index}`} className="group relative overflow-hidden rounded-xl border border-border bg-background">
+                  <img src={image.image_url} alt={`Gallery ${index + 1}`} className="aspect-[4/3] w-full object-cover" />
+                  <button type="button" onClick={() => removeGalleryImage(index)} className="absolute right-2 top-2 rounded-lg bg-red-500 p-2 text-white opacity-0 transition group-hover:opacity-100" aria-label={`Remove gallery image ${index + 1}`}>
+                    <X className="h-4 w-4" />
+                  </button>
+                  <p className="px-3 py-2 text-xs text-muted">Image {index + 1}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center text-sm text-muted">No gallery images yet.</div>
           )}
         </div>
 

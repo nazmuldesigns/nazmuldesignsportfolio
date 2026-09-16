@@ -6,13 +6,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
 if (!hasSupabaseConfig) {
-  console.warn(
-    'Supabase is not configured. Copy .env.example to .env and add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
-  );
+  console.error('Supabase is not configured. Set VITE_SUPABASE_URL=https://khkwarlnlcxfbaiijrgf.supabase.co and VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtoa3dhcmxubGN4ZmJhaWlqcmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MTE0NTYsImV4cCI6MjEwNTA4Nz before starting the app.');
 }
 
-// Placeholder values keep the app renderable during local setup.
-// Supabase requests will fail until the real values are added to .env.
+// Keep the client constructible for local diagnostics, but never hide a missing
+// configuration behind fake content. Public queries will show their real error.
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key',

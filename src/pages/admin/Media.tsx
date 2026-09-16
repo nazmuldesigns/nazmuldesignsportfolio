@@ -80,15 +80,35 @@ export function Media() {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
       try {
-        const { error } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from(selectedBucket)
           .upload(fileName, file);
 
-        if (error) {
-          console.error('Upload error:', error);
-        } else {
-          successCount++;
+        if (uploadError) {
+          toast.error(`Failed to upload ${file.name}: ${uploadError.message}`);
+          continue;
         }
+
+        const { data: publicUrlData } = supabase.storage
+          .from(selectedBucket)
+          .getPublicUrl(fileName);
+
+        const { error: mediaError } = await supabase.from('media').insert({
+          filename: file.name,
+          url: publicUrlData.publicUrl,
+          file_type: file.type || null,
+          file_size: file.size,
+          bucket: selectedBucket,
+          folder: null,
+        });
+
+        if (mediaError) {
+          await supabase.storage.from(selectedBucket).remove([fileName]);
+          toast.error(`Failed to save ${file.name} metadata: ${mediaError.message}`);
+          continue;
+        }
+
+        successCount++;
       } catch (error: any) {
         toast.error(`Failed to upload ${file.name}`);
       }
@@ -96,7 +116,7 @@ export function Media() {
 
     if (successCount > 0) {
       toast.success(`Successfully uploaded ${successCount} image(s)`);
-      fetchMedia();
+      void fetchMedia();
     }
 
     setUploading(false);
@@ -115,7 +135,7 @@ export function Media() {
       toast.error(error.message);
     } else {
       toast.success('Image deleted');
-      fetchMedia();
+      void fetchMedia();
     }
   }
 

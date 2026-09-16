@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowUpRight } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -16,8 +17,21 @@ const navLinks = [
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadProfileImage = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('profile_image')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.profile_image) setProfileImage(data.profile_image);
+    };
+    void loadProfileImage();
+
+    
     const handleScroll = () => setIsScrolled(window.scrollY > 24);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -35,7 +49,7 @@ export function Header() {
       <div className="container mx-auto px-6">
         <div className="flex items-center justify-between gap-6">
           <Link to="/" className="relative z-50 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white shadow-lg">N</span>
+            {profileImage ? <img src={profileImage} alt="Nazmul profile" className="h-11 w-11 rounded-full border-2 border-white object-cover shadow-lg" /> : <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white shadow-lg">N</span>}
             <span className="font-display text-2xl italic">Nazmul</span>
           </Link>
 

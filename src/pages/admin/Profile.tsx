@@ -1,9 +1,10 @@
 // src/pages/admin/Profile.tsx
 import { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
-import { Save } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
 
 export function Profile() {
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,7 @@ export function Profile() {
     email: '',
     phone: '',
     whatsapp: '',
+    profile_image: '',
   });
 
   useEffect(() => {
@@ -27,23 +29,54 @@ export function Profile() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      toast.error(`Could not load profile: ${error.message}`);
+      return;
+    }
 
     if (data) {
-      setProfile(data);
+      setProfile({
+        name: data.name ?? '',
+        brand_name: data.brand_name ?? '',
+        professional_title: data.professional_title ?? '',
+        experience: data.experience ?? '',
+        location: data.location ?? '',
+        biography: data.biography ?? '',
+        email: data.email ?? user.email ?? '',
+        phone: data.phone ?? '',
+        whatsapp: data.whatsapp ?? '',
+        profile_image: data.profile_image ?? '',
+      });
     } else {
-      // Create profile if doesn't exist
-      const { data: newProfile } = await supabase
-        .from('profiles')
-        .insert([{ user_id: user.id }])
-        .select()
-        .single();
+      setProfile((current) => ({ ...current, email: user.email ?? '' }));
+    }
+  }
 
-      if (newProfile) setProfile(newProfile);
+  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const extension = file.name.split('.').pop() || 'jpg';
+      const path = `profile/${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('profile-images').upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('profile-images').getPublicUrl(path);
+      setProfile((current) => ({ ...current, profile_image: data.publicUrl }));
+      toast.success('Profile image uploaded. Save profile to publish it.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Image upload failed');
+    } finally {
+      setLoading(false);
+      e.target.value = '';
     }
   }
 
@@ -55,12 +88,33 @@ export function Profile() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(profile)
-        .eq('user_id', user.id);
+      const profilePayload = {
+        user_id: user.id,
+        name: profile.name || 'Nazmul Hasan',
+        brand_name: profile.brand_name || null,
+        professional_title: profile.professional_title || null,
+        experience: profile.experience || null,
+        location: profile.location || null,
+        biography: profile.biography || null,
+        profile_image: profile.profile_image || null,
+        email: profile.email || user.email || null,
+        phone: profile.phone || null,
+        whatsapp: profile.whatsapp || null,
+      };
 
-      if (error) throw error;
+      const { data: existingProfile, error: lookupError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+
+      const result = existingProfile
+        ? await supabase.from('profiles').update(profilePayload).eq('id', existingProfile.id)
+        : await supabase.from('profiles').insert(profilePayload);
+
+      if (result.error) throw result.error;
 
       toast.success('Profile updated successfully!');
     } catch (error: any) {
@@ -165,6 +219,17 @@ export function Profile() {
               className="w-full px-4 py-3 rounded-lg bg-background border border-border focus:border-accent focus:outline-none"
               placeholder="+880 1234567890"
             />
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2">Profile image</label>
+          <div className="flex items-center gap-4">
+            {profile.profile_image && <img src={profile.profile_image} alt="Profile preview" className="h-20 w-20 rounded-full object-cover" />}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-4 py-3 hover:border-accent">
+              <Upload className="h-5 w-5" /> Upload image
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={loading} />
+            </label>
           </div>
         </div>
 

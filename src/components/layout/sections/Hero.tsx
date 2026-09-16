@@ -9,7 +9,7 @@ export function Hero() {
 
   useEffect(() => {
     const loadProfile = async () => {
-      const { data } = await supabase.from('profiles').select('*').limit(1).maybeSingle();
+      const { data } = await supabase.from('profiles').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle();
       if (data) setProfile(data);
     };
     void loadProfile();

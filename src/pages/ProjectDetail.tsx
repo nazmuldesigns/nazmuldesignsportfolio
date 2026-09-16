@@ -260,19 +260,25 @@ export function ProjectDetail() {
           </div>
         )}
 
-        {/* Gallery */}
+        {/* Behance-style vertical gallery */}
         {images.length > 0 && (
-          <div>
-            <h2 className="text-3xl font-bold mb-8">Gallery</h2>
-            <div className="grid md:grid-cols-2 gap-8">
+          <div className="mt-20">
+            <div className="mb-8 flex items-end justify-between gap-4">
+              <div>
+                <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-accent">Project visuals</p>
+                <h2 className="text-3xl font-bold md:text-4xl">The full story</h2>
+              </div>
+              <span className="text-sm text-muted">{images.length} images</span>
+            </div>
+            <div className="space-y-8 md:space-y-12">
               {images.map((image, index) => (
-                <motion.div
+                <motion.figure
                   key={image.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 32 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="rounded-2xl overflow-hidden cursor-pointer"
+                  viewport={{ once: true, margin: '-80px' }}
+                  transition={{ duration: 0.6 }}
+                  className="group cursor-pointer overflow-hidden rounded-[1.5rem] bg-slate-100 shadow-sm"
                   onClick={() => {
                     const imageIndex = project.cover_image ? index + 1 : index;
                     setLightboxIndex(imageIndex);
@@ -282,13 +288,12 @@ export function ProjectDetail() {
                 >
                   <img
                     src={image.image_url}
-                    alt={image.caption || `Gallery image ${index + 1}`}
-                    className="w-full aspect-video object-cover hover:scale-105 transition-transform duration-500"
+                    alt={image.caption || `${project.title} gallery image ${index + 1}`}
+                    className="block max-h-[85vh] w-full object-contain transition duration-700 group-hover:scale-[1.01]"
+                    loading="lazy"
                   />
-                  {image.caption && (
-                    <p className="mt-2 text-sm text-muted">{image.caption}</p>
-                  )}
-                </motion.div>
+                  {image.caption && <figcaption className="px-5 py-3 text-sm text-muted">{image.caption}</figcaption>}
+                </motion.figure>
               ))}
             </div>
           </div>
