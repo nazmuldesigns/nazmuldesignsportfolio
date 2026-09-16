@@ -23,14 +23,14 @@ function ArcCard({ project, index, total, rotation, paused }: { project: Project
   const cardRotate = Math.sin(radians) * 25;
 
   return (
-    <motion.div className="absolute left-1/2 top-1/2 w-[196px] sm:w-[245px]" animate={{ x: `calc(-50% + ${x}px)`, y: `calc(-50% + ${y - 35}px)`, rotate: cardRotate, scale, opacity, zIndex }} transition={{ duration: paused ? 0.45 : 0.12, ease: 'linear' }} style={{ willChange: 'transform, opacity' }}>
+    <motion.article className="arc-card absolute left-1/2 w-[clamp(140px,15vw,196px)]" style={{ top: '48%', willChange: 'transform, opacity' }} animate={{ x: `calc(-50% + ${x}px)`, y: `calc(-50% + ${y - 35}px)`, rotate: cardRotate, scale, opacity: Math.max(opacity, 0.18), zIndex }} transition={{ duration: paused ? 0.45 : 0.12, ease: 'linear' }}>
       <Link to={`/work/${project.slug}`} className="group block cursor-pointer">
         <div className="aspect-[4/5] overflow-hidden rounded-2xl border border-slate-900/5 bg-white shadow-[0_22px_44px_rgba(17,17,20,0.16)] transition-shadow duration-300 group-hover:shadow-2xl">
           <img src={project.cover_image || ''} alt={project.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
         </div>
         <div className="mt-3 text-center"><h3 className="font-semibold text-slate-950">{project.title}</h3><p className="text-xs text-slate-500">Open project</p></div>
       </Link>
-    </motion.div>
+    </motion.article>
   );
 }
 
